@@ -1,0 +1,58 @@
+const jwt = require('jsonwebtoken');
+const asyncHandler = require('express-async-handler');
+const User = require('../models/User');
+
+const protect = asyncHandler(async (req, res, next) => {
+  let token;
+
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    try {
+      // Get token from header
+      token = req.headers.authorization.split(' ')[1];
+      
+      // Verify token
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      
+      // Get user from token
+      req.user = await User.findById(decoded.id).select('-password');
+      
+      next();
+    } catch (error) {
+      console.error(error);
+      res.status(401);
+      throw new Error('Not authorized');
+    }
+  }
+
+  if (!token) {
+    res.status(401);
+    throw new Error('Not authorized, no token');
+  }
+});
+
+const clubAdmin = asyncHandler(async (req, res, next) => {
+  const club = await Club.findById(req.params.id);
+  
+  if (!club) {
+    res.status(404);
+    throw new Error('Club not found');
+  }
+
+  if (club.admin.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    res.status(401);
+    throw new Error('Not authorized as club admin');
+  }
+  
+  next();
+});
+
+const admin = (req, res, next) => {
+  if (req.user && req.user.role === 'admin') {
+    next();
+  } else {
+    res.status(401);
+    throw new Error('Not authorized as admin');
+  }
+};
+
+module.exports = { protect, clubAdmin, admin };
